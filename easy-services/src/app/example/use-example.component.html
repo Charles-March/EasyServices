@@ -1,0 +1,74 @@
+<header>
+  Example : A list with a selected one
+</header>
+<div class="flex">
+  <section class="fill">
+    <h1>My awesome list</h1>
+    <button (click)="reloadList()">Reload list :)</button>
+    <div class="list" *ngIf="_entities">
+      <button
+        (click)="selectOne(entity)"
+        class="entity-block"
+        *ngFor="let entity of _entities"
+      >
+        <p>foo : {{ entity.foo }}</p>
+        <p>bar : {{ entity.bar }}</p>
+        <p>
+          isSelected :
+          {{ _selected && entity.id === _selected.id ? 'true' : 'false' }}
+        </p>
+      </button>
+    </div>
+  </section>
+  <div class="post-update--div fill flex flexd-column">
+    <section class="fill bg-grey pb15 post-update--section">
+      <h1 class="ta-center">Create new entity</h1>
+      <div class="create--input-div">
+        <span class="ma mb10">foo: <input #foo_c/></span>
+        <span class="ma mb10">bar: <input #bar_c/></span>
+        <button
+          class="send-button ma"
+          type="button"
+          (click)="post(foo_c.value, bar_c.value)"
+        >
+          Send !
+        </button>
+      </div>
+    </section>
+
+    <section class="fill bg-grey pb15 post-update--section" *ngIf="_selected">
+      <h1 class="ta-center">Update selected entity</h1>
+      <div class="create--input-div">
+        <span class="ma mb10"
+          >foo: <input #foo_u [value]="_selected.foo"
+        /></span>
+
+        <span class="ma mb10"
+          >bar: <input #bar_u [value]="_selected.bar"
+        /></span>
+
+        <button
+          class="send-button ma"
+          type="button"
+          (click)="put(_selected.id, foo_u.value, bar_u.value)"
+        >
+          Send !
+        </button>
+      </div>
+    </section>
+
+    <section
+      class="fill bg-grey pb15 post-update--mini-section"
+      *ngIf="_selected"
+    >
+      <h1 class="ta-center">Delete selected entity</h1>
+      <button
+        class="send-button ma"
+        type="button"
+        (click)="delete(_selected.id)"
+      >
+        delete :(
+      </button>
+    </section>
+  </div>
+</div>
