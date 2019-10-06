@@ -33,7 +33,7 @@ export class UseExampleComponent {
 
   selectOne(entity: ExampleModel) {
     console.log(entity.id);
-    this.useExampleService.find(entity.id, true);
+    this.useExampleService.selectOne(entity.id);
   }
 
   post(foo: string, bar: string) {

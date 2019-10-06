@@ -198,6 +198,34 @@ export abstract class Service<
   }
 
   /**
+   * Put selected entity to selected observable
+   * @param id Id of the wanted entity
+   */
+  selectOne(id: string) {
+    if (
+      this.storedPage &&
+      this.storedPage.data &&
+      this.storedPage.data.length > 0
+    ) {
+      const FoundEntity = this.storedPage.data.find(entity => {
+        const keys = Object.keys(entity);
+        if (keys.includes(this.idField)) {
+          return entity[this.idField] === id;
+        } else {
+          throw new Error(
+            'Easy Service : Impossible to find ID Field, maybe you missed the `idField` on initRepository()'
+          );
+        }
+      });
+      this._selectedEntity.next(FoundEntity);
+    } else {
+      console.warn(
+        'Easy Service : Invalid state, select called while stored page as no entity'
+      );
+    }
+  }
+
+  /**
    * Update a stored entity
    * @param id Id of the entity
    * @param updatedEntity entity with new values
@@ -251,7 +279,7 @@ export abstract class Service<
       this._entityPage$.next(this.storedPage);
     } else {
       console.warn(
-        'Easy Service : Invalid state, delete called while stored page as no member'
+        'Easy Service : Invalid state, delete called while stored page as no entity'
       );
     }
   }
