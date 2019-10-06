@@ -32,7 +32,6 @@ export class UseExampleComponent {
   }
 
   selectOne(entity: ExampleModel) {
-    console.log(entity.id);
     this.useExampleService.selectOne(entity.id);
   }
 

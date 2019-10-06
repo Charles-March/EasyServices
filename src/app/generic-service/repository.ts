@@ -44,7 +44,6 @@ export class Repository<T, Po, Pm> {
     return this._http.get(`/${id}`).pipe(
       map(
         (data): T => {
-          console.log(data);
           return EntityBuilder.buildOne<T>(this.TClass, data);
         }
       )
