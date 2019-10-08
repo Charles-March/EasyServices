@@ -4,6 +4,10 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject } from 'rxjs';
 import { first } from 'rxjs/operators';
 import { IRequiredPage } from './default-page/default-page';
+import {
+  IDefaultAppendPageOptions,
+  IDefaultPaginationPageOptions
+} from './default-page-options/default-page-options';
 
 @Injectable()
 /**
@@ -15,17 +19,10 @@ import { IRequiredPage } from './default-page/default-page';
 export abstract class Service<
   T extends Object,
   Pm extends IRequiredPage<T>,
-  Po
+  Po extends IDefaultAppendPageOptions | IDefaultPaginationPageOptions
 > {
-  protected useCache = false;
-  protected storedPage: Pm = null;
-
-  protected idField = 'id';
-
   protected repository: Repository<T, Po, Pm>;
   protected entityType: any;
-
-  protected findOptions: any = {};
 
   protected _entityPage$ = new BehaviorSubject<Pm>(null);
   public entityPage$ = this._entityPage$.asObservable();
@@ -40,20 +37,14 @@ export abstract class Service<
    * @param url base url for the entity
    * @param entityType class of the entity
    * @param pageType class of the page model
-   * @param useCache if set to true, a copy of the page will be saved and updated on each modification (like a store)
-   * @param idField DEFAULT: 'id', The T's id field which is unique (useless if you don't use cache)
    * @param forceRepository OPTIONAL A new repository, override default repository
    */
   initRepository(
     url: string,
     entityType: any,
     pageType: any,
-    useCache: boolean,
-    idField: string = 'id',
     forceRepository: Repository<T, Po, Pm> = null
   ) {
-    this.useCache = useCache;
-    this.idField = idField;
     if (forceRepository) {
       this.repository = forceRepository;
     } else {
@@ -67,24 +58,13 @@ export abstract class Service<
   }
 
   /**
-   * Change options that will be send with the list query as query params for filtering/sortinging
-   * @param options see more example in default-page-options/*.ts
-   */
-  changeListOptions(options: any) {
-    this.findOptions = options;
-  }
-
-  /**
    * List entities based on options stored and push the Pm into entityPage observer
    * @returns return an observable of entity page (Pm)
    */
-  list() {
-    const obs = this.repository.find(this.findOptions);
+  list(options: Po) {
+    const obs = this.repository.find(options);
     obs.pipe(first()).subscribe(list => {
       this._entityPage$.next(list);
-      if (this.useCache) {
-        this.storedPage = list;
-      }
     });
     return obs;
   }
@@ -92,24 +72,20 @@ export abstract class Service<
   /**
    * Create an entity with an entity or a formData
    * @param entity the entity to build
-   * @param reload OPTIONAL if set to true, call list() after the post ended
    * @param toSelected OPTIONAL Push the created entity into selectedEntity observer
    */
-  create(entity: T | FormData, reload = false, toSelected: boolean = false) {
+  create(
+    entity: T | FormData,
+    toSelected: boolean = false,
+    options: Po = null
+  ) {
     const obs = this.repository.create(entity);
     obs.pipe(first()).subscribe(createdEntity => {
       if (toSelected) {
         this._selectedEntity.next(createdEntity);
       }
-      if (reload) {
-        this.list();
-      } else if (this.useCache) {
-        if (this.storedPage) {
-          this.storedPage.data.push(createdEntity);
-          this._entityPage$.next(this.storedPage);
-        } else {
-          this.storedPage = { data: [createdEntity] } as Pm;
-        }
+      if (options) {
+        this.list(options);
       }
     });
     return obs;
@@ -138,18 +114,16 @@ export abstract class Service<
   update(
     id: string,
     updatedEntity: Partial<T> | FormData,
-    reload: boolean = false,
-    toSelected: boolean = false
+    toSelected: boolean = false,
+    options: Po = null
   ) {
     const obs = this.repository.update(id, updatedEntity);
     obs.pipe(first()).subscribe(returnedEntity => {
       if (toSelected) {
         this._selectedEntity.next(returnedEntity);
       }
-      if (reload) {
-        this.list();
-      } else if (this.useCache) {
-        this._updateOneEntityById(id, returnedEntity);
+      if (options) {
+        this.list(options);
       }
     });
 
@@ -158,23 +132,16 @@ export abstract class Service<
   /**
    * Update an entity by id using a PATCH http call. Can be updated by a Partial of entity's class or a formData
    * @param toSelected OPTIONAL Push the created entity in the selectedEntity pipe
-   * @param toSelected OPTIONAL Push the created entity in the selectedEntity pipe
    */
   patch(
     id: string,
     updatedEntity: Partial<T> | FormData,
-    reload: boolean = false,
     toSelected: boolean = false
   ) {
     const obs = this.repository.patch(id, updatedEntity);
     obs.pipe(first()).subscribe(returnedEntity => {
       if (toSelected) {
         this._selectedEntity.next(returnedEntity);
-      }
-      if (reload) {
-        this.list();
-      } else if (this.useCache) {
-        this._updateOneEntityById(id, returnedEntity);
       }
     });
 
@@ -183,104 +150,9 @@ export abstract class Service<
 
   /**
    * Delete an entity by id
-   * @param reload OPTIONAL if set to true, call list() after the post ended
    */
-  delete(id: string, reload: boolean = false) {
+  delete(id: string) {
     const obs = this.repository.delete(id);
-    obs.pipe(first()).subscribe(() => {
-      if (reload) {
-        this.list();
-      }
-      if (this.useCache) {
-        this._deleteEntityById(id);
-      }
-    });
-  }
-
-  /**
-   * Put selected entity to selected observable
-   * @param id Id of the wanted entity
-   */
-  selectOne(id: string) {
-    if (
-      this.storedPage &&
-      this.storedPage.data &&
-      this.storedPage.data.length > 0
-    ) {
-      const FoundEntity = this.storedPage.data.find(entity => {
-        const keys = Object.keys(entity);
-        if (keys.includes(this.idField)) {
-          return entity[this.idField] === id;
-        } else {
-          throw new Error(
-            'Easy Service : Impossible to find ID Field, maybe you missed the `idField` on initRepository()'
-          );
-        }
-      });
-      this._selectedEntity.next(FoundEntity);
-    } else {
-      console.warn(
-        'Easy Service : Invalid state, select called while stored page as no entity'
-      );
-    }
-  }
-
-  /**
-   * Update a stored entity
-   * @param id Id of the entity
-   * @param updatedEntity entity with new values
-   */
-  protected _updateOneEntityById(id: string, updatedEntity: T) {
-    if (
-      this.storedPage &&
-      this.storedPage.data &&
-      this.storedPage.data.length > 0
-    ) {
-      const index = this.storedPage.data.findIndex(entity => {
-        const keys = Object.keys(entity);
-        if (keys.includes(this.idField)) {
-          return entity[this.idField] === id;
-        } else {
-          throw new Error(
-            'Easy Service : Impossible to find ID Field, maybe you missed the `idField` on initRepository()'
-          );
-        }
-      });
-
-      this.storedPage.data[index] = updatedEntity;
-      this._entityPage$.next(this.storedPage);
-    } else {
-      this.storedPage.data = [updatedEntity];
-    }
-  }
-
-  /**
-   * Delete an entity in the stored page ()
-   * @param id Id of the entity
-   */
-  protected _deleteEntityById(id: string) {
-    if (
-      this.storedPage &&
-      this.storedPage.data &&
-      this.storedPage.data.length > 0
-    ) {
-      const index = this.storedPage.data.findIndex(entity => {
-        const keys = Object.keys(entity);
-        if (keys.includes(this.idField)) {
-          return entity[this.idField] === id;
-        } else {
-          throw new Error(
-            'Easy Service : Impossible to find ID Field, maybe you missed the `idField` on initRepository()'
-          );
-        }
-      });
-
-      this.storedPage.data.splice(index, 1);
-      this._entityPage$.next(this.storedPage);
-    } else {
-      console.warn(
-        'Easy Service : Invalid state, delete called while stored page as no entity'
-      );
-    }
+    obs.pipe(first()).subscribe(() => {});
   }
 }

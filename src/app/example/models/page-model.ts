@@ -1,15 +1,8 @@
 import { ExampleModel } from './model';
-import { IMysqlDefaultPage } from 'src/app/generic-service/default-page/default-page';
 import { Entity, Type } from '@decahedron/entity';
+import { IDefaultPaginationPageOptions } from 'src/app/generic-service/default-page-options/default-page-options';
 
-export class ExamplePageModel extends Entity
-  implements IMysqlDefaultPage<ExampleModel> {
-  current_page: number;
-  per_page: number;
-  from: number;
-  to: number;
-  total: number;
-
+export class ExamplePageModel extends Entity {
   @Type(ExampleModel)
   data: ExampleModel[];
 }
