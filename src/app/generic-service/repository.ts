@@ -3,6 +3,7 @@ import { createHttp, ICustomHttpClient } from './http';
 import { HttpClient } from '@angular/common/http';
 import { map } from 'rxjs/operators';
 import { EntityBuilder } from '@decahedron/entity';
+import { Observable } from 'rxjs';
 
 /**
  * Generic repository
@@ -23,7 +24,7 @@ export class Repository<T, Po, Pm> {
     this.PClass = pageType;
   }
 
-  public find(options: Partial<Po> = {}) {
+  public find(options: Partial<Po> = {}): Observable<Pm> {
     const query = stringify(options, {
       arrayFormat: 'brackets',
       skipNulls: true,

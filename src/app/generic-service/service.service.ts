@@ -1,13 +1,14 @@
 import { Injectable } from '@angular/core';
 import { Repository } from './repository';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Observable, timer, Subject } from 'rxjs';
 import { first } from 'rxjs/operators';
 import { IRequiredPage } from './default-page/default-page';
 import {
   IDefaultAppendPageOptions,
   IDefaultPaginationPageOptions
 } from './default-page-options/default-page-options';
+import { ServiceConfig } from './service-config';
 
 @Injectable()
 /**
@@ -24,6 +25,11 @@ export abstract class Service<
   protected repository: Repository<T, Po, Pm>;
   protected entityType: any;
 
+  protected waitingTime = 0;
+  protected inwaiting = false;
+  protected waitingObs: Observable<Pm> = null;
+  protected waitingValue: Pm = null;
+
   protected _entityPage$ = new BehaviorSubject<Pm>(null);
   public entityPage$ = this._entityPage$.asObservable();
 
@@ -32,27 +38,33 @@ export abstract class Service<
 
   constructor(private readonly httpClient: HttpClient) {}
 
+  protected _canList(): boolean {
+    return !this.inwaiting;
+  }
+
   /**
    * Initialize the repository
-   * @param url base url for the entity
-   * @param entityType class of the entity
-   * @param pageType class of the page model
-   * @param forceRepository OPTIONAL A new repository, override default repository
+   * @param config Configuration for the service see service-config.ts for more informations.
    */
-  initRepository(
-    url: string,
-    entityType: any,
-    pageType: any,
-    forceRepository: Repository<T, Po, Pm> = null
-  ) {
-    if (forceRepository) {
-      this.repository = forceRepository;
+  initRepository(config: ServiceConfig): void {
+    this.waitingTime = config.minTime;
+    if (config.forceRepository) {
+      this.repository = config.forceRepository;
     } else {
+      if (!config.url) {
+        console.warn('Easy service: `url` missing in the config passed');
+      }
+      if (!config.pageType) {
+        console.warn('Easy service: `pageType` missing in the config passed');
+      }
+      if (!config.entityType) {
+        console.warn('Easy service: `entityType` missing in the config passed');
+      }
       this.repository = new Repository<T, Po, Pm>(
-        url,
+        config.url,
         this.httpClient,
-        entityType,
-        pageType
+        config.entityType,
+        config.pageType
       );
     }
   }
@@ -61,12 +73,31 @@ export abstract class Service<
    * List entities based on options stored and push the Pm into entityPage observer
    * @returns return an observable of entity page (Pm)
    */
-  list(options: Po) {
-    const obs = this.repository.find(options);
-    obs.pipe(first()).subscribe(list => {
-      this._entityPage$.next(list);
-    });
-    return obs;
+  list(options: Po): Observable<Pm> {
+    if (!this.waitingTime || this._canList()) {
+      this.inwaiting = true;
+      const obs = this.repository.find(options);
+      if (this.waitingTime) {
+        this.waitingValue = null;
+        this.waitingObs = obs;
+        timer(this.waitingTime)
+          .pipe(first())
+          .subscribe(() => {
+            this.inwaiting = false;
+          });
+      }
+      obs.pipe(first()).subscribe(list => {
+        this._entityPage$.next(list);
+        this.waitingValue = list;
+      });
+      return obs;
+    } else {
+      if (this.waitingValue) {
+        return new BehaviorSubject(this.waitingValue).asObservable();
+      } else {
+        return this.waitingObs;
+      }
+    }
   }
 
   /**
@@ -78,7 +109,7 @@ export abstract class Service<
     entity: T | FormData,
     toSelected: boolean = false,
     options: Po = null
-  ) {
+  ): Observable<T> {
     const obs = this.repository.create(entity);
     obs.pipe(first()).subscribe(createdEntity => {
       if (toSelected) {
@@ -95,7 +126,7 @@ export abstract class Service<
    * Find one entity by id
    * @param toSelected OPTIONAL Push the created entity in the selectedEntity pipe
    */
-  find(id: string, toSelected: boolean = false) {
+  find(id: string, toSelected: boolean = false): Observable<T> {
     const obs = this.repository.findOne(id);
     obs.pipe(first()).subscribe(createdEntity => {
       if (toSelected) {
@@ -116,7 +147,7 @@ export abstract class Service<
     updatedEntity: Partial<T> | FormData,
     toSelected: boolean = false,
     options: Po = null
-  ) {
+  ): Observable<T> {
     const obs = this.repository.update(id, updatedEntity);
     obs.pipe(first()).subscribe(returnedEntity => {
       if (toSelected) {
@@ -137,7 +168,7 @@ export abstract class Service<
     id: string,
     updatedEntity: Partial<T> | FormData,
     toSelected: boolean = false
-  ) {
+  ): Observable<T> {
     const obs = this.repository.patch(id, updatedEntity);
     obs.pipe(first()).subscribe(returnedEntity => {
       if (toSelected) {
@@ -151,7 +182,7 @@ export abstract class Service<
   /**
    * Delete an entity by id
    */
-  delete(id: string) {
+  delete(id: string): void {
     const obs = this.repository.delete(id);
     obs.pipe(first()).subscribe(() => {});
   }

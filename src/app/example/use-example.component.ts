@@ -3,6 +3,7 @@ import { UseExampleService } from './use-example.service';
 import { ExampleModel } from './models/model';
 import { ExamplePageModel } from './models/page-model';
 import { IDefaultPaginationPageOptions } from '../generic-service/default-page-options/default-page-options';
+import { debounceTime } from 'rxjs/operators';
 @Component({
   selector: 'app-use-example',
   templateUrl: './use-example.component.html',
@@ -14,11 +15,12 @@ export class UseExampleComponent {
   _options: IDefaultPaginationPageOptions = {};
 
   constructor(private readonly useExampleService: UseExampleService) {
-    useExampleService.initRepository(
-      'http://localhost:1880/default-model',
-      ExampleModel,
-      ExamplePageModel
-    );
+    useExampleService.initRepository({
+      url: 'http://localhost:1880/default-model',
+      entityType: ExampleModel,
+      pageType: ExamplePageModel,
+      minTime: 200
+    });
     useExampleService.entityPage$.subscribe(page => {
       if (page) {
         this._entities = page.data;
@@ -51,6 +53,7 @@ export class UseExampleComponent {
   }
 
   reloadList() {
+    console.log('query reload');
     this.useExampleService.list(this._options);
   }
   delete(id: string) {
