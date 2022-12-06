@@ -24,7 +24,7 @@
     "tslib": "^1.9.0",
     "@decahedron/entity": "^2.6.0",
     "zone.js": "~0.8.26",
-    "qs": "^6.7.0"
+    "qs": "^6.9.7"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "~0.12.0",
